@@ -1,0 +1,42 @@
+name: Update BLS data
+
+on:
+  schedule:
+    - cron: "15 14 8 * *"   # 8th of each month, 14:15 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update dataset
+        env:
+          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}   # optional but recommended
+        run: python -m src.update_data
+
+      - name: Commit and push (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add data/bls_monthly.csv data/build_info.json
+            git commit -m "Update BLS data"
+            git push
+          else
+            echo "No changes to commit."
+          fi

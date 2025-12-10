@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import altair as alt
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from src.config import SERIES_META
+
+ROOT = Path(__file__).resolve().parent
+DATA_PATH = ROOT / "data" / "bls_monthly.csv"
+BUILD_INFO_PATH = ROOT / "data" / "build_info.json"
+
+
+@st.cache_data
+def load_data() -> pd.DataFrame:
+    df = pd.read_csv(DATA_PATH, parse_dates=["date"])
+    df = df.sort_values("date").reset_index(drop=True)
+    return df
+
+
+@st.cache_data
+def load_build_info() -> dict:
+    if BUILD_INFO_PATH.exists():
+        return json.loads(BUILD_INFO_PATH.read_text())
+    return {}
+
+
+def compute_latest_metrics(df: pd.DataFrame, series_id: str) -> dict:
+    s = df[["date", series_id]].dropna().set_index("date")[series_id].sort_index()
+    if len(s) == 0:
+        return {"latest": np.nan, "mom": np.nan, "yoy": np.nan, "latest_date": None}
+
+    latest = float(s.iloc[-1])
+    latest_date = s.index[-1]
+    mom = float(s.iloc[-1] - s.iloc[-2]) if len(s) >= 2 else np.nan
+    yoy = float(s.iloc[-1] - s.iloc[-13]) if len(s) >= 13 else np.nan
+
+    return {"latest": latest, "mom": mom, "yoy": yoy, "latest_date": latest_date}
+
+
+st.set_page_config(page_title="US Labor Statistics Dashboard (BLS)", layout="wide")
+st.title("US Labor Statistics Dashboard (BLS)")
+
+if not DATA_PATH.exists():
+    st.error("Missing data/bls_monthly.csv. Run the updater script once to create it.")
+    st.stop()
+
+df = load_data()
+build_info = load_build_info()
+
+latest_month = df["date"].max().date()
+generated_at = build_info.get("generated_at_utc", "Unknown")
+st.caption(f"Latest month in dataset: **{latest_month}**  •  Data build time (UTC): **{generated_at}**")
+
+# Required metrics
+req_payroll = compute_latest_metrics(df, "CES0000000001")
+req_u3 = compute_latest_metrics(df, "LNS14000000")
+req_u6 = compute_latest_metrics(df, "LNS13327709")
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Nonfarm Payrolls (thousands)", f"{req_payroll['latest']:,.0f}", f"{req_payroll['mom']:+,.0f} MoM")
+c2.metric("Unemployment Rate (U-3)", f"{req_u3['latest']:.1f}%", f"{req_u3['mom']:+.1f} pp MoM")
+c3.metric("Underutilization (U-6)", f"{req_u6['latest']:.1f}%", f"{req_u6['mom']:+.1f} pp MoM")
+
+st.divider()
+
+series_ids = list(SERIES_META.keys())
+
+def _fmt_series(sid: str) -> str:
+    meta = SERIES_META.get(sid, {})
+    return f"{meta.get('name', sid)}  ({sid})"
+
+with st.sidebar:
+    st.header("Controls")
+    selected = st.multiselect(
+        "Series",
+        options=series_ids,
+        default=["CES0000000001", "LNS14000000", "CES0500000003"],
+        format_func=_fmt_series,
+    )
+
+    view_mode = st.radio(
+        "View mode",
+        ["Levels", "Indexed (100 at start)", "MoM change", "YoY % change"],
+        index=0,
+    )
+
+    min_d = df["date"].min().date()
+    max_d = df["date"].max().date()
+    start_d, end_d = st.date_input("Date range", value=(min_d, max_d), min_value=min_d, max_value=max_d)
+
+    st.caption("Tip: use 'Indexed' if you select series with different units.")
+
+mask = (df["date"].dt.date >= start_d) & (df["date"].dt.date <= end_d)
+df_f = df.loc[mask].copy()
+
+if not selected:
+    st.info("Select at least one series in the sidebar.")
+    st.stop()
+
+df_plot = df_f[["date"] + selected].set_index("date").sort_index()
+
+y_title = "Value"
+if view_mode == "Indexed (100 at start)":
+    df_plot = df_plot.apply(lambda s: (s / s.dropna().iloc[0]) * 100 if s.dropna().size else s)
+    y_title = "Index (100 = start)"
+elif view_mode == "MoM change":
+    df_plot = df_plot.diff()
+    y_title = "Month-over-month change"
+elif view_mode == "YoY % change":
+    df_plot = df_plot.pct_change(12) * 100
+    y_title = "Year-over-year % change"
+
+df_long = df_plot.reset_index().melt("date", var_name="series_id", value_name="value")
+df_long["series_name"] = df_long["series_id"].map(lambda sid: SERIES_META[sid]["name"])
+
+chart = (
+    alt.Chart(df_long.dropna())
+    .mark_line()
+    .encode(
+        x=alt.X("date:T", title="Date"),
+        y=alt.Y("value:Q", title=y_title),
+        color=alt.Color("series_name:N", title="Series"),
+        tooltip=[
+            alt.Tooltip("date:T", title="Date"),
+            alt.Tooltip("series_name:N", title="Series"),
+            alt.Tooltip("value:Q", title="Value", format=",.2f"),
+        ],
+    )
+    .properties(height=420)
+    .interactive()
+)
+
+st.altair_chart(chart, use_container_width=True)
+
+rows = []
+for sid in selected:
+    meta = SERIES_META[sid]
+    m = compute_latest_metrics(df_f, sid)
+
+    if meta["type"] == "rate":
+        mom_str = f"{m['mom']:+.2f} pp" if pd.notna(m["mom"]) else ""
+        yoy_str = f"{m['yoy']:+.2f} pp" if pd.notna(m["yoy"]) else ""
+    else:
+        mom_str = f"{m['mom']:+,.2f}" if pd.notna(m["mom"]) else ""
+        yoy_str = f"{m['yoy']:+,.2f}" if pd.notna(m["yoy"]) else ""
+
+    rows.append(
+        {
+            "Series": meta["name"],
+            "ID": sid,
+            "Unit": meta["unit"],
+            "Latest": m["latest"],
+            "MoM change": mom_str,
+            "YoY change": yoy_str,
+        }
+    )
+
+st.subheader("Latest values (for selected series)")
+st.dataframe(pd.DataFrame(rows), use_container_width=True)
+
+st.download_button(
+    "Download filtered data (CSV)",
+    data=df_f[["date"] + selected].to_csv(index=False).encode("utf-8"),
+    file_name="bls_filtered.csv",
+    mime="text/csv",
+)

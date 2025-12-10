@@ -2,11 +2,16 @@ name: Update BLS data
 
 on:
   schedule:
-    - cron: "15 14 8 * *"   # 8th of each month, 14:15 UTC
+    # Run every weekday at 15:20 UTC (frequent enough to catch releases quickly)
+    - cron: "20 15 * * 1-5"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: update-bls-data
+  cancel-in-progress: true
 
 jobs:
   update:
@@ -28,15 +33,18 @@ jobs:
           BLS_API_KEY: ${{ secrets.BLS_API_KEY }}   # optional but recommended
         run: python -m src.update_data
 
-      - name: Commit and push (if changed)
+      - name: Commit and push (only if DATA changed)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [[ -n "$(git status --porcelain)" ]]; then
+          # Only commit if the actual dataset changed
+          if [[ -n "$(git status --porcelain data/bls_monthly.csv)" ]]; then
             git add data/bls_monthly.csv data/build_info.json
             git commit -m "Update BLS data"
             git push
           else
-            echo "No changes to commit."
+            echo "No changes in data/bls_monthly.csv; skipping commit."
+            # build_info.json changes every run due to timestamp; discard it if data didn't change
+            git checkout -- data/build_info.json || true
           fi

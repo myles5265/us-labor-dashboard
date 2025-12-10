@@ -1,0 +1,53 @@
+{
+  "generated_at_utc": "2025-12-10T01:32:00+00:00",
+  "api_version_used": "v2",
+  "startyear_requested": 2016,
+  "endyear_requested": 2025,
+  "min_date": "2016-01-01",
+  "max_date": "2025-09-01",
+  "n_rows": 117,
+  "series": {
+    "CES0000000001": {
+      "name": "All employees: Total nonfarm (Payrolls)",
+      "unit": "Thousands",
+      "type": "level",
+      "source": "CES"
+    },
+    "CES0500000003": {
+      "name": "Average hourly earnings: Total private",
+      "unit": "Dollars per hour",
+      "type": "level",
+      "source": "CES"
+    },
+    "CES0500000002": {
+      "name": "Average weekly hours: Total private",
+      "unit": "Hours",
+      "type": "level",
+      "source": "CES"
+    },
+    "LNS14000000": {
+      "name": "Unemployment rate (U-3)",
+      "unit": "Percent",
+      "type": "rate",
+      "source": "CPS"
+    },
+    "LNS11300000": {
+      "name": "Labor force participation rate",
+      "unit": "Percent",
+      "type": "rate",
+      "source": "CPS"
+    },
+    "LNS12300000": {
+      "name": "Employment-population ratio",
+      "unit": "Percent",
+      "type": "rate",
+      "source": "CPS"
+    },
+    "LNS13327709": {
+      "name": "Unemployment rate (U-6 underutilization)",
+      "unit": "Percent",
+      "type": "rate",
+      "source": "CPS"
+    }
+  }
+}

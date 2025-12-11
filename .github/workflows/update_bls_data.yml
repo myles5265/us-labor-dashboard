@@ -1,14 +1,31 @@
+# .github/workflows/update_bls_data.yml
+#
+# This workflow keeps your repository dataset up-to-date.
+#
+# Key idea:
+# - The Streamlit app reads data/bls_monthly.csv from the repo.
+# - This workflow runs src/update_data.py on a schedule and commits any changes.
+#
+# Why we run frequently:
+# - BLS releases happen on specific days that can vary by series and shift with holidays.
+# - By checking once per weekday we quickly pick up new releases without guessing dates.
+#
+# Why we only commit when the CSV changes:
+# - update_data.py writes build_info.json with a timestamp each run.
+# - We only want a new commit when the dataset actually changed.
+
 name: Update BLS data
 
 on:
   schedule:
-    # Run every weekday at 15:20 UTC (frequent enough to catch releases quickly)
+    # Weekdays at 15:20 UTC (adjust as desired)
     - cron: "20 15 * * 1-5"
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: write
 
+# Prevent overlapping runs (helpful if GitHub queues delays).
 concurrency:
   group: update-bls-data
   cancel-in-progress: true
@@ -16,6 +33,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -30,21 +48,22 @@ jobs:
 
       - name: Update dataset
         env:
-          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}   # optional but recommended
+          # Store this secret in GitHub repo settings (optional but recommended).
+          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
         run: python -m src.update_data
 
-      - name: Commit and push (only if DATA changed)
+      - name: Commit and push (only if data changed)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Only commit if the actual dataset changed
+          # Only commit if the *dataset* changed.
           if [[ -n "$(git status --porcelain data/bls_monthly.csv)" ]]; then
             git add data/bls_monthly.csv data/build_info.json
             git commit -m "Update BLS data"
             git push
           else
             echo "No changes in data/bls_monthly.csv; skipping commit."
-            # build_info.json changes every run due to timestamp; discard it if data didn't change
+            # build_info.json may have a new timestamp—discard it if data didn't change.
             git checkout -- data/build_info.json || true
           fi

@@ -6,9 +6,6 @@ This file is the "single source of truth" for:
 1) Which BLS time-series we collect (SERIES_META keys)
 2) How we display them in the Streamlit dashboard (friendly name/unit/type)
 
-If you want to add more series to your project, this is the only place you need
-to edit. After you add an entry here:
-
 - The updater script (src/update_data.py) will automatically pull that series
   from the BLS API and add it as a new column in data/bls_monthly.csv
 - The Streamlit app (app.py) will automatically show it as an option to graph

@@ -3,19 +3,11 @@ app.py
 
 Streamlit dashboard for the US Labor Statistics project.
 
-One key requirement: there is a single time-series chart, and every series can
-be selected or deselected for plotting over time. No small-multiple grids.
-
 Design principle:
 - The dashboard does NOT call the BLS API at runtime.
 - A separate script (src/update_data.py), usually run by GitHub Actions,
   updates data/bls_monthly.csv in the repository.
 - This app reads that CSV, applies simple transformations, and plots it.
-
-This version adds:
-- Legend labels that include units and reflect the chosen view mode.
-- Dynamic chart titles based on which series are selected.
-- Clearer labeling and captions for MoM and YoY transformations.
 """
 
 from __future__ import annotations

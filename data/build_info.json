@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-08-07T16:11:00+00:00",
+  "generated_at_utc": "2026-09-04T18:28:27+00:00",
   "api_version_used": "v2",
   "startyear_requested": 2024,
   "endyear_requested": 2026,
   "min_date": "2016-01-01",
-  "max_date": "2026-07-01",
-  "n_rows": 127,
+  "max_date": "2026-08-01",
+  "n_rows": 128,
   "series": {
     "CES0000000001": {
       "name": "Total nonfarm payroll employment",
